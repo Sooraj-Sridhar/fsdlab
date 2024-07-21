@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+ nav{background-color: lightblue;padding: 15px; }
+ nav a {
+ color: #fff; /* Text color */
+ text-decoration: none; /* Remove underline */
+ padding: 10px 20px; /* Padding around each link */
+ margin: 0px 10px; /* Spacing between links */
+ border-radius: 5px; /* Rounded corners */
+ background-color: #555;
+ flex-wrap: wrap;
+
+}
+nav a:hover {
+ background-color:aqua;/* Background color on hover */
+}
+ul {
+ list-style: none;
+ margin: 0;
+ padding: 0;
+ display: flex; /* Use flexbox */
+ flex-wrap: wrap; /* Allow items to wrap to the next line */
+ flex-direction: row; /* Display items in a column */
+ }
+ li {
+ margin-right: 20px;
+ margin-bottom: 25px;
+ }
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 93
+ </style>
+<title>
+{% block title %} {% endblock %}
+</title>
+</head>
+<body>
+<center> <h1 style="background-color: blue;color:yellow"> STUDENT COURSE
+REGISTRATION PORTAL</h1></center>
+<nav>
+<ul>
+<li> <a href="/home/">HOME</a></li>
+<li> <a href="/studentlist/">STUDENT LIST</a></li>
+<li> <a href="/courselist/">COURSE LIST</a> </li>
+<li> <a href="/register/">REGISTER</a></li>
+<li> <a href="/enrolledlist/">ENROLLED LIST</a></li>
+<li> <a href="/addproject/">ADD PROJECT</a></li>
+<li><a href="/genericlistviewstudent/">GENERIC STUDENT LIST VIEW</a></li>
+<li> <a href="/download_course_table_as_csv/">DOWNLOAD COURSE AS
+CSV</a> </li>
+<li> <a href="/download_course_table_as_pdf/">DWONLOAD COURSE AS
+PDF</a></li>
+</ul>
+</nav>
+<section>
+{% block content %} {% endblock %}
+</section>
+<footer>
+<hr/>
+<center>
+&copy; Designed and Developeb by Dr. Harish Kumar B T, Dept. of CSE, BIT,
+Bangalore-04
+</center>
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 94
+</footer>
+</body>
+</html>
+models.py
+from django.db import models
+from django.forms import ModelForm
+# Create your models here.
+class course(models.Model):
+courseCode=models.CharField(max_length=10)
+courseName=models.CharField(max_length=50)
+courseCredits=models.IntegerField()
+def __str__(self):
+return self.courseCode+" "+self.courseName+" "+str(self.courseCredits)
+class student(models.Model):
+usn=models.CharField(max_length=10)
+name=models.CharField(max_length=40)
+sem=models.IntegerField()
+courses=models.ManyToManyField(course,related_name='student_set')
+def __str__(self):
+return self.usn+" "+self.name+" "+str(self.sem)
+class projectReg(models.Model):
+student=models.ForeignKey(student,on_delete=models.CASCADE)
+ptitle=models.CharField(max_length=30)
+planguage=models.CharField(max_length=30)
+pduration=models.IntegerField()
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 95
+class projectForm(ModelForm):
+required_css_class="required"
+class Meta:
+model=projectReg
+fields=['student','ptitle','planguage','pduration']
+After writing models.py run the below commands in VS code terminal.
+python manage.py makemigrations
+python manage.py migrate
+views.py
+from django.http import HttpResponse
+from django.shortcuts import render
+from studCourseRegApp.models import student,course, projectForm
+# Create your views here.
+def home(request):
+return render(request,'home.html')
+def studentlist(request):
+s=student.objects.all()
+return render(request,'studentlist.html',{'student_list':s})
+def courselist(request):
+c=course.objects.all()
+return render(request,'courselist.html',{'course_list':c})
+def register(request):
+if request.method=="POST":
+sid=request.POST.get("student")
+cid=request.POST.get("course")
+studentobj=student.objects.get(id=sid)
+courseobj=course.objects.get(id=cid)
+res=studentobj.courses.filter(id=cid)
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 96
+if res:
+resp="<h1>Student with usn %s has already enrolled for the
+%s<h1>"%(studentobj.usn,courseobj.courseCode)
+return HttpResponse(resp)
+studentobj.courses.add(courseobj)
+resp="<h1>student with usn %s successfully enrolled for the course with sub code
+%s</h1>"%(studentobj.usn,courseobj.courseCode)
+return HttpResponse(resp)
+else:
+studentlist=student.objects.all()
+courselist=course.objects.all()
+return render(request,'register.html',{'student_list':studentlist,'course_list':courselist})
+def enrolledStudents(request):
+if request.method=="POST":
+cid=request.POST.get("course")
+courseobj=course.objects.get(id=cid)
+studentlistobj=courseobj.student_set.all()
+return render(request,'enrolledlist.html',{'course':courseobj,'student_list':studentlistobj})
+else:
+courselist=course.objects.all()
+return render(request,'enrolledlist.html',{'Course_List':courselist})
+def add_project(request):
+if request.method=="POST":
+form=projectForm(request.POST)
+if form.is_valid():
+form.save()
+return HttpResponse("<h1>Project Data Successfully saved</h1>")
+else:
+return HttpResponse("<h1>Project details not saved</h1>")
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 97
+else:
+form=projectForm()
+return render(request, "projectReg.html",{'form':form})
+from django.views import generic
+class StudentListView(generic.ListView):
+model=student
+template_name="GenericListViewStudent.html"
+class StudentDetailView(generic.DetailView):
+model=student
+template_name="GenericDetailedViewStudent.html"
+import csv
+def generateCSV(request):
+courses=course.objects.all()
+resp=HttpResponse(content_type="text/csv")
+resp['Content-Disposition']='attachment; filename=course_data.csv'
+writer=csv.writer(resp)
+writer.writerow(['Course Code','Course Name','Course Credits'])
+for c in courses:
+writer.writerow([c.courseCode,c.courseName,c.courseCredits])
+return resp
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Table
+def generatePDF(request):
+courses=course.objects.all()
+resp=HttpResponse(content_type="text/pdf")
+resp['Content-Disposition']='attachment; filename=course_data.pdf'
+pdf=SimpleDocTemplate(resp,pagesize=letter)
+table_data=[['Course Code','Course Name','Course Credits']]
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 98
+for c in courses:
+table_data.append([c.courseCode,c.courseName,str(c.courseCredits)])
+table=Table(table_data)
+pdf.build([table])
+return resp
+urls.py
+from django.contrib import admin
+from django.urls import path
+from studCourseRegApp.views import enrolledStudentsUsingAjax, generateCSV, home,
+registerAjax,
+studentlist,courselist,register,enrolledStudents,add_project,StudentListView,StudentDetailVie
+w,generatePDF
+urlpatterns = [
+path('secretadmin/', admin.site.urls),
+path('',home),
+path('home/',home),
+path('studentlist/',studentlist),
+path('courselist/',courselist),
+path('register/',register),
+path('enrolledlist/',enrolledStudents),
+path('addproject/',add_project),
+path('genericlistviewstudent/',StudentListView.as_view()),
+path('genericdetailedviewstudent/<int:pk>/',StudentDetailView.as_view()),
+path('download_course_table_as_csv/',generateCSV),
+path('download_course_table_as_pdf/',generatePDF),
+21CS62 Full Stack Development Laboratory
+Dept. of Computer Science and Engineering, BIT 2023-2024 Page 99
+settings.py(only one change inside installed apps add studCourseRegApp )
+# Application definition
+INSTALLED_APPS = [
+'django.contrib.admin',
+'django.contrib.auth',
+'django.contrib.contenttypes',
+'django.contrib.sessions',
+'django.contrib.messages',
+'django.contrib.staticfiles',
+'studCourseRegApp',
+]
